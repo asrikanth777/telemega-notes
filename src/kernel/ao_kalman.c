@@ -156,10 +156,15 @@ ao_kalman_predict(void)
 // this part runs regardless of if AO_FLIGHT_TEST is there
 	ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_100 + (ao_k_t) ao_accel * AO_K_STEP_2_2_100) >> 4;
 	ao_k_speed += (ao_k_t) ao_accel * AO_K_STEP_100;
-	// same equations from earlier, but using ao_k_step_100. going by my previous assumption, if it has to do with steps and tickdiff multiplying to 50
-	// then maybe this is for tick differences less than 0.5 (100*0.5 = 50) or values that can't be handled in AO_FLIGHT_TEST
-	// or it is to add precision, which is why its for a much smaller tick difference using 100
-	// since this code runs regardless of AO_FLIGHT_TEST
+	/* - Aditya Srikanth
+	same equations from earlier, but using ao_k_step_100. going by my previous assumption, if it has to do with steps and tickdiff multiplying to 50
+	then maybe this is for tick differences less than 0.5 (100*0.5 = 50) or values that can't be handled in AO_FLIGHT_TEST
+	or it is to add precision, which is why its for a much smaller tick difference using 100
+	since this code runs regardless of AO_FLIGHT_TEST
+	what i mean:	if AO_FLIGHT_TEST is there, it handles the biggest tick diff it can first, then does the STEP_100 part for extra precision
+					if AO_FlIGHT_TEST isn't there, it starts with the smallest steps it can take for precision
+					im assuming that maybe this takes longer? this is for shishir to answer maybe.
+	*/
 	
 }
 
