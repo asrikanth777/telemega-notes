@@ -16,6 +16,10 @@
  * 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA.
  */
 
+/* - Aditya Srikanth
+imports for ao.h, ao_flight.h, ao_sample.h
+no clue where ao_kalman.h is currently other than in .gitignore
+*/
 #ifndef AO_FLIGHT_TEST
 #include "ao.h"
 #include "ao_flight.h"
@@ -24,9 +28,22 @@
 #include "ao_sample.h"
 #include "ao_kalman.h"
 
+/* - Aditya Srikanth
+static variable declarations, if we are doing in python, we can ignore this
+ao_k_t is a type of int64_t, giving int range of 2^-63 to 2^63 - 1
+then we have uninitialized variables for height, speed, accel
+*/
+
 static ao_k_t		ao_k_height;
 static ao_k_t		ao_k_speed;
 static ao_k_t		ao_k_accel;
+
+/* - Aditya Srikanth
+these are increments 
+the first type is defined by 1 divided by the number given, or also AO_K_STEP_(x) = 1/x
+the second type is taking the result from before, squaring it, and then dividing it by 2
+- for example: 0.00005 = (0.01**2) / 2
+*/
 
 #define AO_K_STEP_100		to_fix_v(0.01)
 #define AO_K_STEP_2_2_100	to_fix_v(0.00005)
@@ -34,17 +51,37 @@ static ao_k_t		ao_k_accel;
 #define AO_K_STEP_10		to_fix_v(0.1)
 #define AO_K_STEP_2_2_10	to_fix_v(0.005)
 
-#define AO_K_STEP_1		to_fix_v(1)
+#define AO_K_STEP_1			to_fix_v(1)
 #define AO_K_STEP_2_2_1		to_fix_v(0.5)
 
-ao_v_t			ao_height;
-ao_v_t			ao_speed;
-ao_v_t			ao_accel;
-ao_v_t			ao_max_height;
-static ao_k_t		ao_avg_height_scaled;
-ao_v_t			ao_avg_height;
+/* - Aditya Srikanth
+more variable declarations, but these aren't static. will look into where else they may be used in the repo
+ao_v_t is an int32_t type and is used to define ao_height, ao_speed, ao_accel, ao_max_height, etc.
+however, ao_avg_height_scaled is in ao_k_t from earlier
 
-ao_v_t			ao_error_h;
+my assumption is that the ao_k is for kalman filter and plain ao_ is from sample data? not sure
+*/
+
+ao_v_t				ao_height;
+ao_v_t				ao_speed;
+ao_v_t				ao_accel;
+ao_v_t				ao_max_height;
+static ao_k_t		ao_avg_height_scaled;
+ao_v_t				ao_avg_height;
+ao_v_t				ao_error_h;
+
+/* - Aditya Srikanth
+some conditional statements down here
+1) first one says if the program doesnt have HAS_ACCEL or AO_FLIGHT_TEST, then it defines a macro named AO_ERROR_H_SQ_AVG with a value of 1
+2) second one says that if AO_ERROR_H_SQ_AVG is non-zero (or 1 as we defined earlier), an uninitialized variable of
+   type ao_v_t (int32_t) is created and named ao_error_h_sq_avg
+3) third one says that if the program has HAS_ACCEL, it defines a variable named ao_error_a
+
+Assumptions of mine:
+I want to say that these are incase that the data given doesn't have everything needed and used to make work arounds, especially for 1 and 2.
+for 3, it is just setting the stage for calculating error of acceleration if given.
+*/
+
 #if !HAS_ACCEL || AO_FLIGHT_TEST
 #define AO_ERROR_H_SQ_AVG	1
 #endif
@@ -57,10 +94,15 @@ ao_v_t			ao_error_h_sq_avg;
 ao_v_t			ao_error_a;
 #endif
 
+/* - Aditya Srikanth
+ao_kalman_predict is what i presume to be the filter's prediction on the rockets position, vel, acc, and more. 
+*/
+
 static void
 ao_kalman_predict(void)
 {
-#ifdef AO_FLIGHT_TEST
+#ifdef AO_FLIGHT_TEST // checking if AO_FLIGHT_TEST is there
+
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 50) {
 		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_1 +
 				(ao_k_t) ao_accel * AO_K_STEP_2_2_1) >> 4;
@@ -85,6 +127,10 @@ ao_kalman_predict(void)
 			(ao_k_t) ao_accel * AO_K_STEP_2_2_100) >> 4;
 	ao_k_speed += (ao_k_t) ao_accel * AO_K_STEP_100;
 }
+
+/* - Aditya Srikanth
+
+*/
 
 #if HAS_BARO
 static void
