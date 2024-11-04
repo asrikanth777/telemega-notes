@@ -101,15 +101,22 @@ ao_kalman_predict is what i presume to be the filter's prediction on the rockets
 static void
 ao_kalman_predict(void)
 {
-#ifdef AO_FLIGHT_TEST // checking if AO_FLIGHT_TEST is there
-
+#ifdef AO_FLIGHT_TEST // checking if AO_FLIGHT_TEST is there (some reason its in the .gitignore dont know why)
+	// - Aditya Srikanth
+	// here we can assume tick to be steps, so this is counting if the difference between the current tick and previous tick is greater than 50 (seconds? milliseconds?)
+	// units are unclear, it could be nanoseconds for all i know
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 50) {
-		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_1 +
-				(ao_k_t) ao_accel * AO_K_STEP_2_2_1) >> 4;
+		// this adds to our original height using a speed and acceleration
+		// speed * AO_K_STEP_1 (1) + accel  * AO_K_2_2_1 (0.5) 
+		// need to look more into this and what the steps are for
+		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_1 + (ao_k_t) ao_accel * AO_K_STEP_2_2_1) >> 4;
+		// same here but speed += accel * AO_K_STEP_1 (1)
 		ao_k_speed += (ao_k_t) ao_accel * AO_K_STEP_1;
 
 		return;
 	}
+	// - Aditya Srikanth
+	// basically the same thing here as above
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 5) {
 		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_10 +
 				(ao_k_t) ao_accel * AO_K_STEP_2_2_10) >> 4;
@@ -117,6 +124,13 @@ ao_kalman_predict(void)
 
 		return;
 	}
+
+	/* - Aditya Srikanth
+	the steps have something to do with integration/derivation i think
+	for example, integral(x) = x**2 / 2
+	why it is done in these steps or why they have the associated values is what is throwing me off
+	*/
+
 	if (ao_flight_debug) {
 		printf ("predict speed %g + (%g * %g) = %g\n",
 			ao_k_speed / (65536.0 * 16.0), ao_accel / 16.0, AO_K_STEP_100 / 65536.0,
