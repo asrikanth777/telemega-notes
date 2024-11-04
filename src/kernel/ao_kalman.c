@@ -43,6 +43,13 @@ these are increments
 the first type is defined by 1 divided by the number given, or also AO_K_STEP_(x) = 1/x
 the second type is taking the result from before, squaring it, and then dividing it by 2
 - for example: 0.00005 = (0.01**2) / 2
+
+the steps have something to do with integration/derivation i think
+for example, integral(x) = x**2 / 2
+
+this is to help with distance and velocity calculations, and based on the tick range, it uses the step accordingly, 
+since it would be difficult to calculate for each incrementation
+think of it like a staircase going from height a to height b, this is to help set the number of "steps" needed
 */
 
 #define AO_K_STEP_100		to_fix_v(0.01)
@@ -63,7 +70,7 @@ my assumption is that the ao_k is for kalman filter and plain ao_ is from sample
 */
 
 ao_v_t				ao_height;
-ao_v_t				ao_speed;
+ao_v_t				ao_speed; //int32 ---> 2**-31 to 2**31 - 1
 ao_v_t				ao_accel;
 ao_v_t				ao_max_height;
 static ao_k_t		ao_avg_height_scaled;
@@ -107,10 +114,9 @@ ao_kalman_predict(void)
 	// units are unclear, it could be nanoseconds for all i know
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 50) {
 		// this adds to our original height using a speed and acceleration
-		// speed * AO_K_STEP_1 (1) + accel  * AO_K_2_2_1 (0.5) 
-		// need to look more into this and what the steps are for
-		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_1 + (ao_k_t) ao_accel * AO_K_STEP_2_2_1) >> 4;
-		// same here but speed += accel * AO_K_STEP_1 (1)
+		// think of distance equation: D = D0 + v*t + 1/2at^2
+		ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_1 + (ao_k_t) ao_accel * AO_K_STEP_2_2_1) >> 4; //bitwise shift, not exactly sure what it is for, something to do with binary representaiton
+		// speed equation: Vf = V0 + at
 		ao_k_speed += (ao_k_t) ao_accel * AO_K_STEP_1;
 
 		return;
@@ -126,20 +132,35 @@ ao_kalman_predict(void)
 	}
 
 	/* - Aditya Srikanth
-	the steps have something to do with integration/derivation i think
-	for example, integral(x) = x**2 / 2
-	why it is done in these steps or why they have the associated values is what is throwing me off
+	it seems that 50 is a significant value here, wondering why????
+	first if statement: tick diff > 50 ------> use AO_K_STEP_1
+	second if statement: tick diff > 5 ------> use AO_K_STEP_10 (5*10=50)
+	what is important about this 
 	*/
 
+	
 	if (ao_flight_debug) {
 		printf ("predict speed %g + (%g * %g) = %g\n",
-			ao_k_speed / (65536.0 * 16.0), ao_accel / 16.0, AO_K_STEP_100 / 65536.0,
+			// (aokspeed / 2^20) + (aoaccel*timestep/2^20) = speed prediction
+			ao_k_speed / (65536.0 * 16.0), 
+			ao_accel / 16.0, 
+			AO_K_STEP_100 / 65536.0,
 			(ao_k_speed + (ao_k_t) ao_accel * AO_K_STEP_100) / (65536.0 * 16.0));
+			/*
+			its taking the speed equation and dividing by 2^20???? asked gpt and it said something about
+			handling fixed point arithmetic by scaling?
+			(this is more a of a cs thing i think, im not sure what it does or how it helps with calculation.)
+			*/
 	}
 #endif
-	ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_100 +
-			(ao_k_t) ao_accel * AO_K_STEP_2_2_100) >> 4;
+// this part runs regardless of if AO_FLIGHT_TEST is there
+	ao_k_height += ((ao_k_t) ao_speed * AO_K_STEP_100 + (ao_k_t) ao_accel * AO_K_STEP_2_2_100) >> 4;
 	ao_k_speed += (ao_k_t) ao_accel * AO_K_STEP_100;
+	// same equations from earlier, but using ao_k_step_100. going by my previous assumption, if it has to do with steps and tickdiff multiplying to 50
+	// then maybe this is for tick differences less than 0.5 (100*0.5 = 50) or values that can't be handled in AO_FLIGHT_TEST
+	// or it is to add precision, which is why its for a much smaller tick difference using 100
+	// since this code runs regardless of AO_FLIGHT_TEST
+	
 }
 
 /* - Aditya Srikanth
