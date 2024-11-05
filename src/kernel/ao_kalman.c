@@ -169,23 +169,25 @@ ao_kalman_predict(void)
 }
 
 /* - Aditya Srikanth
-
+Below is a function for calculating error height from kalman filter
 */
 
 #if HAS_BARO
 static void
-ao_kalman_err_height(void)
-{
-#if AO_ERROR_H_SQ_AVG
-	ao_v_t	e;
+ao_kalman_err_height(void) 	//check HAS_BARO (barometric data im assuming), if so, it runs the ao_kalman_err_height(void). 
+{							// guessing this is going to calculate margin of error from real results vs kalman filter, so it needs actual data (HAS_BARO)
+
+#if AO_ERROR_H_SQ_AVG 	//AO_ERROR_H_SQ_AVG prob stands for error height square average
+	ao_v_t	e; 			// uninitialized variable {e} with type ao_v_t (int32_t)
 #endif
-	ao_v_t height_distrust;
+	ao_v_t height_distrust; // regardless of AO_ERROR_H_SQ_AVG this is declared. height_distrust prob means how inaccurate height calculations are, will confirm later.
 #if HAS_ACCEL
-	ao_v_t	speed_distrust;
+	ao_v_t	speed_distrust; // if acceleration data is given, it declares variable {speed_distrust}. hella times HAS_ACCEL is defined in this repo tho not sure why.
 #endif
 
-	ao_error_h = ao_sample_height - (ao_v_t) (ao_k_height >> 16);
-
+	ao_error_h = ao_sample_height - (ao_v_t) (ao_k_height >> 16); 	// goes regardless calculates actual difference between data and kalman
+																	// followed by another bitewise shift????? i see it everywhere and dont understand what it does
+																	// something to do with efficiency vs dividing normally maybe.
 #if AO_ERROR_H_SQ_AVG
 	e = ao_error_h;
 	if (e < 0)
