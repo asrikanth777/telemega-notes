@@ -188,14 +188,16 @@ ao_kalman_err_height(void) 	//check HAS_BARO (barometric data im assuming), if s
 	ao_error_h = ao_sample_height - (ao_v_t) (ao_k_height >> 16); 	// goes regardless calculates actual difference between data and kalman
 																	// followed by another bitewise shift????? i see it everywhere and dont understand what it does
 																	// something to do with efficiency vs dividing normally maybe.
-#if AO_ERROR_H_SQ_AVG
+
+#if AO_ERROR_H_SQ_AVG // 	if AO_ERROR_H_SQ_AVG, e = ao_error_h (this is probably for sake of not having to rewrite ao_error_h
+						//	over and ove again)
 	e = ao_error_h;
-	if (e < 0)
+	if (e < 0)			// we want error to always be positive (sign is not really important, it helps with calculation (overflow or smth))
 		e = -e;
-	if (e > 127)
+	if (e > 127)		// if e is too high, we just restrict it to one number for calculation sake
 		e = 127;
-	ao_error_h_sq_avg -= ao_error_h_sq_avg >> 4;
-	ao_error_h_sq_avg += (e * e) >> 4;
+	ao_error_h_sq_avg -= ao_error_h_sq_avg >> 4; // bitewise shifts error_h by 4, and subtracts it from ao_error_h_sq_avg
+	ao_error_h_sq_avg += (e * e) >> 4; // squares error, and bitewise shfits by 4, and adds it to ao_error_h_sq_avg
 #endif
 
 	if (ao_flight_state >= ao_flight_drogue)
