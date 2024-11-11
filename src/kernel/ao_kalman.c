@@ -32,7 +32,13 @@ no clue where ao_kalman.h is currently other than in .gitignore
 static variable declarations, if we are doing in python, we can ignore this
 ao_k_t is a type of int64_t, giving int range of 2^-63 to 2^63 - 1
 then we have uninitialized variables for height, speed, accel
+
+more in the type and bitshifting
+int32 -> 32 bits (4 bytes, 8 bits per byte)
+int64 -> 64 bits (8 bytes, 8 bits per byte) difference by 
 */
+
+
 
 static ao_k_t		ao_k_height;
 static ao_k_t		ao_k_speed;
@@ -142,14 +148,13 @@ ao_kalman_predict(void)
 	if (ao_flight_debug) {
 		printf ("predict speed %g + (%g * %g) = %g\n",
 			// (aokspeed / 2^20) + (aoaccel*timestep/2^20) = speed prediction
-			ao_k_speed / (65536.0 * 16.0), 
+			ao_k_speed / (65536.0 * 16.0) //, 
 			ao_accel / 16.0, 
 			AO_K_STEP_100 / 65536.0,
 			(ao_k_speed + (ao_k_t) ao_accel * AO_K_STEP_100) / (65536.0 * 16.0));
 			/*
-			its taking the speed equation and dividing by 2^20???? asked gpt and it said something about
-			handling fixed point arithmetic by scaling?
-			(this is more a of a cs thing i think, im not sure what it does or how it helps with calculation.)
+			the problem divides everything by 2^20, shifting each value by 20 bits, 
+			(the shifting is more of a calculation speed thing, may be different in python.)
 			*/
 	}
 #endif
@@ -196,36 +201,42 @@ ao_kalman_err_height(void) 	//check HAS_BARO (barometric data im assuming), if s
 		e = -e;
 	if (e > 127)		// if e is too high, we just restrict it to one number for calculation sake
 		e = 127;
-	ao_error_h_sq_avg -= ao_error_h_sq_avg >> 4; // bitewise shifts error_h by 4, and subtracts it from ao_error_h_sq_avg
-	ao_error_h_sq_avg += (e * e) >> 4; // squares error, and bitewise shfits by 4, and adds it to ao_error_h_sq_avg
+	ao_error_h_sq_avg -= ao_error_h_sq_avg >> 4; // decays old h_sq_average
+	ao_error_h_sq_avg += (e * e) >> 4; // adds the new error_hq_sq (e**2)
 #endif
-
-	if (ao_flight_state >= ao_flight_drogue)
+	/* - Aditya Srikanth
+	the flight states are numbered in order, so this says if ao_flight_state is after ao_flight_drogue (parachuting),
+	we ignore this part
+	*/
+	if (ao_flight_state >= ao_flight_drogue) 
 		return;
-	height_distrust = ao_sample_alt - AO_MAX_BARO_HEIGHT;
+	height_distrust = ao_sample_alt - AO_MAX_BARO_HEIGHT; // error tolerance = sample data - estimated max height
 #if HAS_ACCEL
 	/* speed is stored * 16, but we need to ramp between 248 and 328, so
 	 * we want to multiply by 2. The result is a shift by 3.
 	 */
-	speed_distrust = (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) >> (4 - 1);
-	if (speed_distrust > AO_MAX_SPEED_DISTRUST)
-		speed_distrust = AO_MAX_SPEED_DISTRUST;
+	speed_distrust = (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) >> (4 - 1); // error tolerance = sample data - estimated max speed
+	if (speed_distrust > AO_MAX_SPEED_DISTRUST) // if calulated error tolerance is higher than estimated
+		speed_distrust = AO_MAX_SPEED_DISTRUST; // then it becomes the same as estimated (for faster calculations?)
 	if (speed_distrust > height_distrust)
-		height_distrust = speed_distrust;
+		height_distrust = speed_distrust; // also, if speed distrust is heigher than height distrust, it changes the lower to match
 #endif
-	if (height_distrust > 0) {
+	if (height_distrust > 0) { 
 #ifdef AO_FLIGHT_TEST
-		int	old_ao_error_h = ao_error_h;
+		int	old_ao_error_h = ao_error_h; // overrides old error h
 #endif
-		if (height_distrust > 0x100)
+		if (height_distrust > 0x100) //clamping to cap decimal for faster calculations
 			height_distrust = 0x100;
-		ao_error_h = (ao_v_t) (((ao_k_t) ao_error_h * (0x100 - height_distrust)) >> 8);
+		ao_error_h = (ao_v_t) (((ao_k_t) ao_error_h * (0x100 - height_distrust)) >> 8); // more shifting calculations 
+		/* - Aditya Srikanth
+		basically, if height distrust low, ao_error_h stays close to original value, if high, ao_error_h scaled down
+		*/
 #ifdef AO_FLIGHT_TEST
 		if (ao_flight_debug) {
-			printf("over height %g over speed %g distrust: %g height: error %d -> %d\n",
-			       (double) (ao_sample_alt - AO_MAX_BARO_HEIGHT),
-			       (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) / 16.0,
-			       height_distrust / 256.0,
+			printf("over height %g over speed %g distrust: %g height: error %d -> %d\n", 
+			       (double) (ao_sample_alt - AO_MAX_BARO_HEIGHT), // height distrust
+			       (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) / 16.0, // speed difference, scaled down by 16
+			       height_distrust / 256.0, // shifting like before if ao_flight_test is present
 			       old_ao_error_h, ao_error_h);
 		}
 #endif
