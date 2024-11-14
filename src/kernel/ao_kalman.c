@@ -235,18 +235,27 @@ ao_kalman_err_height(void) 	//check HAS_BARO (barometric data im assuming), if s
 		if (ao_flight_debug) {
 			printf("over height %g over speed %g distrust: %g height: error %d -> %d\n", 
 			       (double) (ao_sample_alt - AO_MAX_BARO_HEIGHT), // height distrust
-			       (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) / 16.0, // speed difference, scaled down by 16
+			       (ao_speed - AO_MS_TO_SPEED(AO_MAX_BARO_SPEED)) / 16.0, // diff between current and max allowable speed
 			       height_distrust / 256.0, // shifting like before if ao_flight_test is present
-			       old_ao_error_h, ao_error_h);
+			       old_ao_error_h, // these are representing 
+				   ao_error_h); // the change in error values 
 		}
 #endif
 	}
 }
 #endif
 
-#if HAS_BARO
+#if HAS_BARO //if given barometric data, we do this stuff below
 static void
 ao_kalman_correct_baro(void)
+/* - Aditya Srikanth
+this function helps use error data to adjust height, speed, accel.
+- first part runs the ao_kalman_err_height() function to find height error
+- second part is similar to kalman predict function, which goes of tick difference.
+	+ based on that difference, height is added to by the AO_BARO step multiplied by error (AO_BARO not defined anywhere)
+	+ my assumption is that the 0, 1, 2 stand for derivations, 0 = height, 1 = speed, etc.
+	
+*/
 {
 	ao_kalman_err_height();
 #ifdef AO_FLIGHT_TEST
