@@ -254,7 +254,7 @@ this function helps use error data to adjust height, speed, accel.
 - second part is similar to kalman predict function, which goes of tick difference.
 	+ based on that difference, height is added to by the AO_BARO step multiplied by error (AO_BARO not defined anywhere)
 	+ my assumption is that the 0, 1, 2 stand for derivations, 0 = height, 1 = speed, etc.
-	
+
 */
 {
 	ao_kalman_err_height();
@@ -271,24 +271,30 @@ this function helps use error data to adjust height, speed, accel.
 		ao_k_accel  += (ao_k_t) AO_BARO_K2_10 * ao_error_h;
 		return;
 	}
-#endif
+#endif  // if neither tickdiff is met, smallest corrective measures are taken to calculate
 	ao_k_height += (ao_k_t) AO_BARO_K0_100 * ao_error_h;
 	ao_k_speed  += (ao_k_t) AO_BARO_K1_100 * ao_error_h;
 	ao_k_accel  += (ao_k_t) AO_BARO_K2_100 * ao_error_h;
 }
 #endif
 
-#if HAS_ACCEL
+#if HAS_ACCEL // if acceleration data is given, then we start calculations on finding acceleration error
 
 static void
 ao_kalman_err_accel(void)
 {
-	ao_k_t	accel;
+	ao_k_t	accel; //defines acceleration
 
-	accel = (ao_config.accel_plus_g - ao_sample_accel) * ao_accel_scale;
+	accel = (ao_config.accel_plus_g - ao_sample_accel) * ao_accel_scale ; // sensor to m/s2 conversion,
 
-	/* Can't use ao_accel here as it is the pre-prediction value still */
+	/* - Aditya Srikanth
+	total expected acceleration with gravity included - sample acceleration, this gives our "real" acceleration
+	then this is multiplied by ao_acc
+	*/
+
+	/* Can't use ao_accel here as it is the pre-prediction value still (added by owner) */
 	ao_error_a = (ao_v_t) ((accel - ao_k_accel) >> 16);
+	// error acceleration calculated by newfound accel and predicted accel difference
 }
 
 #if !defined(FORCE_ACCEL) && HAS_BARO
