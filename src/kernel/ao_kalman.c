@@ -297,9 +297,9 @@ ao_kalman_err_accel(void)
 	// error acceleration calculated by newfound accel and predicted accel difference
 }
 
-#if !defined(FORCE_ACCEL) && HAS_BARO
+#if !defined(FORCE_ACCEL) && HAS_BARO // checks for not having force accel data but has barometric data
 static void
-ao_kalman_correct_both(void)
+ao_kalman_correct_both(void) //correcting height and accel using the functions below
 {
 	ao_kalman_err_height();
 	ao_kalman_err_accel();
@@ -307,18 +307,20 @@ ao_kalman_correct_both(void)
 #ifdef AO_FLIGHT_TEST
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 50) {
 		if (ao_flight_debug) {
+// Correct Speed ao_k_speed + (height error * scaling factor) + (acceleration error * scaling factor) = corrected speed calculation
 			printf ("correct speed %g + (%g * %g) + (%g * %g) = %g\n",
 				ao_k_speed / (65536.0 * 16.0),
-				(double) ao_error_h, AO_BOTH_K10_1 / 65536.0,
-				(double) ao_error_a, AO_BOTH_K11_1 / 65536.0,
-				(ao_k_speed +
-				 (ao_k_t) AO_BOTH_K10_1 * ao_error_h +
-				 (ao_k_t) AO_BOTH_K11_1 * ao_error_a) / (65536.0 * 16.0));
+				(double) ao_error_h, 
+				AO_BOTH_K10_1 / 65536.0,
+				(double) ao_error_a, 
+				AO_BOTH_K11_1 / 65536.0,
+
+				(ao_k_speed + (ao_k_t) AO_BOTH_K10_1 * ao_error_h + (ao_k_t) AO_BOTH_K11_1 * ao_error_a) / (65536.0 * 16.0));
 		}
-		ao_k_height +=
+		ao_k_height += //kalman height = ao_both (??? maybe another timestep, no definition) * height error + ao_both_deriv * accel error
 			(ao_k_t) AO_BOTH_K00_1 * ao_error_h +
 			(ao_k_t) AO_BOTH_K01_1 * ao_error_a;
-		ao_k_speed +=
+		ao_k_speed +=//kalman speed = 
 			(ao_k_t) AO_BOTH_K10_1 * ao_error_h +
 			(ao_k_t) AO_BOTH_K11_1 * ao_error_a;
 		ao_k_accel +=
