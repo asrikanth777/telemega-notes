@@ -317,18 +317,20 @@ ao_kalman_correct_both(void) //correcting height and accel using the functions b
 
 				(ao_k_speed + (ao_k_t) AO_BOTH_K10_1 * ao_error_h + (ao_k_t) AO_BOTH_K11_1 * ao_error_a) / (65536.0 * 16.0));
 		}
-		ao_k_height += //kalman height = ao_both (??? maybe another timestep, no definition) * height error + ao_both_deriv * accel error
+		ao_k_height += //kalman height = ao_both (??? maybe another timestep, no definition) * height error + ao_both_pt2deriv * accel error
 			(ao_k_t) AO_BOTH_K00_1 * ao_error_h +
 			(ao_k_t) AO_BOTH_K01_1 * ao_error_a;
-		ao_k_speed +=//kalman speed = 
+		ao_k_speed +=//kalman speed = ao_both_pt1deriv * height error + ao_both_pt1_pt2derive * accel error
 			(ao_k_t) AO_BOTH_K10_1 * ao_error_h +
 			(ao_k_t) AO_BOTH_K11_1 * ao_error_a;
-		ao_k_accel +=
+		ao_k_accel +=//kalman accel = ao_both_pt1derivSecond * height error + ao_both_pt1derivSecond_pt2deriv * accel error
 			(ao_k_t) AO_BOTH_K20_1 * ao_error_h +
 			(ao_k_t) AO_BOTH_K21_1 * ao_error_a;
 		return;
 	}
-	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 5) {
+	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 5) { 
+		// literally same as before but with a smaller tick diff, goes from _1 to _10 (50*1 = 5*10)
+		
 		if (ao_flight_debug) {
 			printf ("correct speed %g + (%g * %g) + (%g * %g) = %g\n",
 				ao_k_speed / (65536.0 * 16.0),
@@ -349,7 +351,7 @@ ao_kalman_correct_both(void) //correcting height and accel using the functions b
 			(ao_k_t) AO_BOTH_K21_10 * ao_error_a;
 		return;
 	}
-	if (ao_flight_debug) {
+	if (ao_flight_debug) { //like the previous 2, this does the same calculations, but if tick diff is less than 5
 		printf ("correct speed %g + (%g * %g) + (%g * %g) = %g\n",
 			ao_k_speed / (65536.0 * 16.0),
 			(double) ao_error_h, AO_BOTH_K10_100 / 65536.0,
@@ -368,6 +370,11 @@ ao_kalman_correct_both(void) //correcting height and accel using the functions b
 	ao_k_accel +=
 		(ao_k_t) AO_BOTH_K20_100 * ao_error_h +
 		(ao_k_t) AO_BOTH_K21_100 * ao_error_a;
+
+	/* - Aditya Srikanth
+	some finishing notes, i am not sure what AO_BOTH stands for, since there is no other declaration or definition of these terms
+	my assumption is that it stands for both barometer and accelerometer data but i can't say with certainty
+	*/
 }
 
 #else
