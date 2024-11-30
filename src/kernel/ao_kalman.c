@@ -72,6 +72,8 @@ more variable declarations, but these aren't static. will look into where else t
 ao_v_t is an int32_t type and is used to define ao_height, ao_speed, ao_accel, ao_max_height, etc.
 however, ao_avg_height_scaled is in ao_k_t from earlier
 
+
+
 my assumption is that the ao_k is for kalman filter and plain ao_ is from sample data? not sure
 */
 
@@ -380,9 +382,9 @@ ao_kalman_correct_both(void) //correcting height and accel using the functions b
 #else
 
 static void
-ao_kalman_correct_accel(void)
+ao_kalman_correct_accel(void) 
 {
-	ao_kalman_err_accel();
+	ao_kalman_err_accel(); // runs function for calculating acceleration error
 
 #ifdef AO_FLIGHT_TEST
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 5) {
@@ -390,8 +392,18 @@ ao_kalman_correct_accel(void)
 		ao_k_speed  += (ao_k_t) AO_ACCEL_K1_10 * ao_error_a;
 		ao_k_accel  += (ao_k_t) AO_ACCEL_K2_10 * ao_error_a;
 		return;
+		/*
+		nothing new here really, just calcualtions with low tick difference this time
+		the numbers after k in the ao_k_t variables stand for derivations corresponding to
+		height, speed (first deriv), and accel (second deriv).
+
+		we know AO_ACCEL_KX to be kalman gains for acceleration (think of as scaling facotr), then multiplied by error to 
+		calculate correction needed to existing factor
+
+		*/
 	}
 #endif
+// if no specified tick diff, it takes shortest timestep possbile, same as above
 	ao_k_height += (ao_k_t) AO_ACCEL_K0_100 * ao_error_a;
 	ao_k_speed  += (ao_k_t) AO_ACCEL_K1_100 * ao_error_a;
 	ao_k_accel  += (ao_k_t) AO_ACCEL_K2_100 * ao_error_a;
@@ -416,38 +428,55 @@ ao_kalman_reset_accumulate(void)
 	ao_k_speed -= ao_k_speed_prev;
 	ao_k_height_prev = ao_k_height;
 	ao_k_speed_prev = ao_k_speed;
+
+	// resets calculation by subtracing the additions to calculations, then
+	// rewriting them to their change and and starting from there
 }
 #endif
 
 void
 ao_kalman(void)
 {
+// this function is like the main function of the program, and passes arguments for going through
+// particular functions, strucutred through if else statements, to ensure a proper calculation using
+// what is given
 	ao_kalman_predict();
 #if HAS_BARO
 #if HAS_ACCEL
+		// if both barometric and accel data are given/non-empty
 	if (ao_flight_state <= ao_flight_coast) {
+		// state before coasting stage of flight
 #ifdef FORCE_ACCEL
+		// if we have force accel, we only correct acceleration with the below function
 		ao_kalman_correct_accel();
 #else
+		// otherwise we proceed as normal, using the both function that takes both barometric and accel data
 		ao_kalman_correct_both();
 #endif
 	} else
 #endif
+		// if we are in or past coasting stage, we only care about correcting barometric data
 		ao_kalman_correct_baro();
 #else
 #if HAS_ACCEL
+	// if we doint have any barometric meassurements, we only correct acceleration with the correct_accel function
 	ao_kalman_correct_accel();
 #endif
 #endif
+	// converts fixed point estimates to floats to be used for further calcuations
 	ao_height = (ao_v_t) from_fix(ao_k_height);
 	ao_speed = (ao_v_t) from_fix(ao_k_speed);
 	ao_accel = (ao_v_t) from_fix(ao_k_accel);
 	if (ao_height > ao_max_height)
 		ao_max_height = ao_height;
+		// updates max altitude of flight (for the event of many test runs)
 #if HAS_BARO
 	ao_avg_height_scaled = ao_avg_height_scaled - ao_avg_height + ao_sample_height;
+	// if we are given barometric data, we remove old average height data and replace it with
+	// new sample data to get better height average calculation (updating it really)
 #else
 	ao_avg_height_scaled = ao_avg_height_scaled - ao_avg_height + ao_height;
+	// otherwise we use kalman filter height data instead
 #endif
 #ifdef AO_FLIGHT_TEST
 	if ((AO_TICK_SIGNED) (ao_sample_tick - ao_sample_prev_tick) > 50)
@@ -458,3 +487,13 @@ ao_kalman(void)
 #endif
 		ao_avg_height = (ao_v_t) ((ao_avg_height_scaled + 63) >> 7);
 }
+
+/*
+this part is a little confusing but from what gpt said, its for calculating more smoothly???
+this is downscaling height_scaled to calculate avg_height and using byte shift for better calculations
+this is kind of the equation i derived from it
+ao_avg_height = ao_avg_height_scaled + (2^(x - 1) - 1) >> x { or / 2^x}
+the lower the tick diff, the higher the scaling
+*/
+
+
